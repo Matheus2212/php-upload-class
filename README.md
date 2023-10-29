@@ -34,7 +34,7 @@ Upload::set('image', 'image');
 ---
 
 - Prepare your page: 
-  Check this repo for further info: (js-upload-class)[https://github.com/Matheus2212/js-upload-class]
+  Check this repo for further info: [https://github.com/Matheus2212/js-upload-class]
 
 ---
 
