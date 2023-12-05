@@ -1,9 +1,7 @@
 <?php
 class Upload
 {
-    /**
-     * Defines if will use ES6+ or not
-     */
+    /** Defines if will use ES6+ or not*/
     protected static $JSMode = 1; // 1 -> old ; 2 -> modern
 
     /** Object's name for frontend handle */
@@ -12,14 +10,11 @@ class Upload
     /** Frontend function to be called */
     private static $JSCall = "newUpload";
 
-    /** Encryption key */
-    protected static $key = "$2y$10\$krizQb2DpgDm40Fy1VLxiODhWqAiZxJ4HGOCmBVxNjIHvHN\/jLIYG";
-
     /** Root dir */
     protected static $rootDir = null;
 
     /** This is the input name to be called in frontend, each binded to a specific profile or the same */
-    protected static $fields = array();
+    protected static $inputs = array();
 
     /** Array with all available upload profiles */
     private static $profiles = array();
@@ -45,29 +40,49 @@ class Upload
                 $config['folder'] = substr($config['folder'], 0, -1);
             }
         }
-        $config['integrity'] = self::AESencrypt($config, self::getKey());
-        unset($config['folder']);
-        self::$profiles[md5($name)] = array(
-            "config" => $config
+        self::$profiles[$name] = array(
+            "config" => $config,
+            "key" => md5($name),
+            "name" => $name
         );
     }
 
     /** 
-     * @param $ciphered = encrypted data to get profile
-     * @return array = decryption result
+     * @param $name || $key = profile identifier
+     * @return array = profile config
      *  */
-    public static function getProfile($ciphered)
+    public static function getProfile($profile)
     {
-        return self::AESdecrypt($ciphered, self::getKey());
+        if (array_key_exists($profile, self::$profiles)) {
+            return self::$profiles[$profile];
+        }
+        $md5 = md5($profile);
+        if (array_key_exists($md5, self::$profiles)) {
+            return self::$profiles[$md5];
+        }
+        return false;
     }
 
     /** 
      * @param $input = input name on frontend
      * @param $profile = profile name for binded input
      */
-    public static function set($input, $profile)
+    public static function addInput($input, $profile)
     {
-        self::$fields[] = array('input' => $input, 'profile' => $profile);
+        if (!isset(self::$inputs[$profile])) {
+            self::$inputs[$profile] = [];
+        }
+        self::$inputs[$profile][] = $input;
+    }
+
+    /**
+     * @param string $varKey = variable key to be added
+     * @param string $varValue = variable value to be added
+     * @param string $profile = which profile variable should be added
+     */
+    public static function addVar($varKey, $varValue, $profile)
+    {
+        self::$profiles[$profile]['vars'][] = [$varKey => $varValue];
     }
 
     /**
@@ -79,81 +94,33 @@ class Upload
     }
 
     /**
-     * @return encryption key
-     */
-    public static function getKey()
-    {
-        return self::$key;
-    }
-
-    /**
-     * @param array = encodes array to utf8
-     */
-    public static function recursive_utf8_encode($array)
-    {
-        if (is_array($array)) {
-            return array_map('self::recursive_utf8_encode', $array);
-        } else {
-            return utf8_encode($array);
-        }
-    }
-
-    /**
-     * @param array = decodes aray from utf8
-     */
-    public static function recursive_utf8_decode($array)
-    {
-        if (is_array($array)) {
-            return array_map('self::recursive_utf8_decode', $array);
-        } else {
-            return utf8_decode($array);
-        }
-    }
-
-    /**
-     * @param $data = any; Data to be encrypted
-     * @param $key = encryption key
-     */
-    public static function AESencrypt($data, $key)
-    {
-        if (is_array($data)) {
-            $data = json_encode(self::recursive_utf8_encode($data));
-        }
-        $keyEncrypt = base64_decode($key);
-        $iv = openssl_random_pseudo_bytes(openssl_cipher_iv_length('AES-128-CBC'));
-        $encrypted = openssl_encrypt($data, 'AES-128-CBC', $keyEncrypt, 0, $iv);
-        return base64_encode($encrypted . '::' . base64_encode($iv));
-    }
-
-    /**
-     * @param $data = any; Encrypted data
-     * @param $key = encryption key
-     */
-    public static function AESdecrypt($data, $key)
-    {
-        $keyDecrypt = base64_decode($key);
-        list($encryptedData, $iv) = array_pad(explode('::', base64_decode($data), 2), 2, null);
-        $data = openssl_decrypt($encryptedData, 'AES-128-CBC', $keyDecrypt, 0, base64_decode($iv));
-        $check = @json_decode($data, true);
-        if ($check) {
-            $data = self::recursive_utf8_decode($check);
-        }
-        return $data;
-    }
-
-    /**
      * @param (bool)$tags = Defines if output adds script tags as well
      * @param $profile = Which profile to output
      */
     public static function setProfiles($tags = true, $profile = "all")
     {
+        foreach (self::$profiles as $profileName => $profileData) {
+            unset(self::$profiles[$profileName]['config']['folder']);
+        }
+        if ($profile !== "all" && !isset($profile, self::$profiles)) {
+            return false;
+        }
+        if ($profile === "all") {
+            foreach (self::$inputs as $uploadProfile => $inputs) {
+                if (array_key_exists($uploadProfile, self::$profiles)) {
+                    self::$profiles[$uploadProfile]['inputNames'] = $inputs;
+                }
+            }
+        } else {
+            self::$profiles[$profile]['inputNames'] = self::$inputs[$profile];
+        }
         if ($tags) {
             echo "<script type='text/javascript'>";
-            echo (self::$JSMode == 1 ? "var" : "const") . " uploadProfiles = " . json_encode($profile == 'all' ? self::recursive_utf8_encode(self::$profiles) : self::recursive_utf8_encode(self::$profiles[md5($profile)])) . ";";
+            echo (self::$JSMode == 1 ? "var" : "const") . " uploadProfiles = " . json_encode($profile == 'all' ? self::$profiles : self::$profiles[$profile]) . ";";
             echo "</script>";
             return true;
         }
-        echo json_encode($profile == "all" ? self::recursive_utf8_encode(self::$profiles) : self::recursive_utf8_encode(self::$profiles[md5($profile)]));
+        echo json_encode($profile == "all" ? self::$profiles : self::$profiles[md5($profile)]);
         return true;
     }
 
@@ -166,11 +133,11 @@ class Upload
     {
         if ($tags) {
             echo "<script type='text/javascript'>";
-            echo self::$JSObject . "." . self::$JSCall . "('" . $input . "','" . md5($profile) . "');";
+            echo self::$JSObject . "." . self::$JSCall . "('" . $input . "','" . $profile . "');";
             echo "</script>";
             return true;
         }
-        echo self::$JSObject . "." . self::$JSCall . "('" . $input . "','" . md5($profile) . "');";
+        echo self::$JSObject . "." . self::$JSCall . "('" . $input . "','" . $profile . "');";
         return true;
     }
 
@@ -192,13 +159,13 @@ class Upload
             "status" => "uploading"
         );
         if (file_exists($folder . DIRECTORY_SEPARATOR . "upload.log.json")) {
-            $log = self::recursive_utf8_decode(json_decode(file_get_contents($folder . DIRECTORY_SEPARATOR . "upload.log.json"), true));
+            $log = json_decode(file_get_contents($folder . DIRECTORY_SEPARATOR . "upload.log.json"), true);
             $log[$id] = $jsonData;
         } else {
             $log = array();
             $log[$id] = $jsonData;
         }
-        file_put_contents($folder . DIRECTORY_SEPARATOR . "upload.log.json", json_encode(self::recursive_utf8_encode($log)));
+        file_put_contents($folder . DIRECTORY_SEPARATOR . "upload.log.json", json_encode($log));
         self::removeTrash($folder);
         $file = @fopen($folder . DIRECTORY_SEPARATOR . $fileName, 'a');
         if ($file) {
@@ -218,7 +185,7 @@ class Upload
     private static function removeTrash($folder)
     {
         if (file_exists($folder . DIRECTORY_SEPARATOR . "upload.log.json")) {
-            $json = self::recursive_utf8_decode(json_decode(file_get_contents($folder . DIRECTORY_SEPARATOR . "upload.log.json"), true));
+            $json = json_decode(file_get_contents($folder . DIRECTORY_SEPARATOR . "upload.log.json"), true);
             $date = date("Y-m-d");
             foreach ($json as $id => $data) {
                 if ($data["date"] !== $date) {
@@ -226,7 +193,7 @@ class Upload
                     unset($json[$id]);
                 }
             }
-            file_put_contents($folder . DIRECTORY_SEPARATOR . "upload.log.json", json_encode(self::recursive_utf8_encode($json)));
+            file_put_contents($folder . DIRECTORY_SEPARATOR . "upload.log.json", json_encode($json));
         }
         return true;
     }
@@ -238,13 +205,13 @@ class Upload
     public static function unsetLog($fileName, $folder)
     {
         if (file_exists($folder . DIRECTORY_SEPARATOR . "upload.log.json")) {
-            $json = self::recursive_utf8_decode(json_decode(file_get_contents($folder . DIRECTORY_SEPARATOR .  "upload.log.json"), true));
+            $json = json_decode(file_get_contents($folder . DIRECTORY_SEPARATOR .  "upload.log.json"), true);
             unset($json[md5($fileName)]);
             if (empty($json)) {
                 @unlink($folder . DIRECTORY_SEPARATOR . "upload.log.json");
                 return true;
             } else {
-                file_put_contents($folder . DIRECTORY_SEPARATOR . "upload.log.json", json_encode(self::recursive_utf8_encode($json)));
+                file_put_contents($folder . DIRECTORY_SEPARATOR . "upload.log.json", json_encode($json));
                 return true;
             }
         }
@@ -280,8 +247,10 @@ class Upload
     public static function init($tags = true)
     {
         self::setProfiles($tags);
-        foreach (self::$fields as $key => $field) {
-            self::setTo($field['input'], $field['profile'], $tags);
+        foreach (self::$inputs as $profile => $inputs) {
+            foreach ($inputs as $input) {
+                self::setTo($input, $profile);
+            }
         }
     }
 }

@@ -3,24 +3,35 @@
 header("Cache-Control: no-store, no-cache, must-revalidate, max-age=0");
 header("Cache-Control: post-check=0, pre-check=0", false);
 header("Pragma: no-cache");
+header("Access-Control-Allow-Origin: *");
+//header("Content-type:application/json");
 
 include("UploadClass.php");
 
 $profile = array(
-        "url" => "{{UPLOAD_URL}}",
+        "url" => "http://127.0.0.1:3000",
         "types" => array("jpeg", "jpg", "png", "bmp", "webp"),
         "folder" => "./storage/path",
         "size" => 5000000000,
+        "slice" => 100,
         "total" => 5,
         "vars" => array(), // send additional data to frontend
 );
 
 Upload::addProfile('imagem', $profile);
 
-Upload::set('imagem', 'imagem');
-Upload::set('imagem2', 'imagem');
-Upload::set('imagem3', 'imagem');
-Upload::set('imagem4', 'imagem');
+Upload::addInput('backend', 'imagem');
+
+Upload::addVar("varKey", "varValue","imagem");
+
+if(array_key_exists("upload", $_GET)){
+        include("./UploadMiddleware.php");
+        exit();
+}
+
+Upload::setProfiles(false);
+
+exit();
 
 ?>
 
@@ -68,3 +79,5 @@ Upload::set('imagem4', 'imagem');
 </body>
 
 </html>
+
+<?php Upload::init() ?>
