@@ -28,7 +28,7 @@ Upload::addProfile('image', $profile);
 After that, bind the input name to the profile:
 
 ```php
-Upload::set('image', 'image');
+Upload::addInput('image', 'image'); // inputName, uploadProfileName
 ```
 
 ---
