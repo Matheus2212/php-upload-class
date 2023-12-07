@@ -120,7 +120,7 @@ class Upload
             echo "</script>";
             return true;
         }
-        echo json_encode($profile == "all" ? self::$profiles : self::$profiles[md5($profile)]);
+        echo json_encode($profile == "all" ? self::$profiles : self::$profiles[$profile]);
         return true;
     }
 

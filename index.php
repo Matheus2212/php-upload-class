@@ -9,7 +9,7 @@ header("Access-Control-Allow-Origin: *");
 include("UploadClass.php");
 
 $profile = array(
-        "url" => "http://127.0.0.1:3000",
+        "url" => "http://127.0.0.1:3002",
         "types" => array("jpeg", "jpg", "png", "bmp", "webp"),
         "folder" => "./storage/path",
         "size" => 5000000000,
